@@ -215,12 +215,12 @@ socket.on('gameStarted', (data) => {
 socket.on('trumpCardSet', (data) => {
   // Handle trump card set - store selection and allow reveal
   if (data && data.trumpCard) {
+    // store the trump selection source but do not reveal the suit to everyone
     gameState.trumpCard = data.trumpCard;
-    // set candidate suit across all clients so that the trump suit is highlighted until revealed
-    if (data.trumpCard.card) {
-      const [, , cardSuit] = data.trumpCard.card.split(' ');
-      gameState.candidateTrumpSuit = cardSuit;
-    }
+  }
+  // Mark that a trump was selected (suit hidden from others) so players know reveal can be requested later
+  if (data && data.trumpSet) {
+    gameState.trumpSelected = true;
   }
   // server sets the next game phase to playing
   gameState.phase = 'play';
@@ -247,8 +247,17 @@ socket.on('trumpRevealed', (data) => {
   }
   // clear candidate suit once the server officially revealed the trump
   gameState.candidateTrumpSuit = null;
+  // clear private reveal for the client(s) as the trump is now public
+  gameState.privateTrumpSuit = null;
   // After revealing the trump, change phase to normal play
   gameState.phase = 'play';
+  // No longer a candidate-only trump: it's public now
+  gameState.trumpSelected = false;
+  updateGameDisplay();
+});
+socket.on('trumpRevealed', (data) => {
+  // hide reveal availability once trump is officially revealed
+  gameState.revealAvailable = false;
   updateGameDisplay();
 });
 
@@ -261,6 +270,29 @@ socket.on('cardPlayed', (data) => {
 socket.on('nextTurn', (data) => {
   gameState.currentPlayerIndex = data.currentPlayerIndex;
   updateGameDisplay();
+  // Reset reveal button availability when a new turn arrives
+  gameState.revealAvailable = false;
+});
+
+// Server tells the player they can request a private reveal
+socket.on('revealAvailable', (data) => {
+  // Only the targeted player will receive this from server
+  gameState.revealAvailable = data.canReveal;
+  updateGameDisplay();
+});
+
+// Private reveal of the candidate trump suit - only to one player
+socket.on('revealTrumpPrivate', (data) => {
+  gameState.privateTrumpSuit = data.trumpSuit;
+  showNotification(`Private: TRUMP is ${data.trumpSuit}`, 'info');
+  updateGameDisplay();
+});
+
+// Hide private trump display on next round or new phase
+socket.on('nextRound', (data) => {
+  gameState.privateTrumpSuit = null;
+  const privateTr = document.getElementById('private-trump-display');
+  if (privateTr) privateTr.style.display = 'none';
 });
 
 socket.on('roundComplete', (data) => {
@@ -347,6 +379,10 @@ function renderMyHand() {
     }
     // Candidate highlight when current player has selected a candidate trump card
     if (gameState.candidateTrumpSuit && suit === gameState.candidateTrumpSuit) {
+      cardDiv.classList.add('candidate-trump');
+    }
+    // Private reveal highlight (only shown to player who asked)
+    if (gameState.privateTrumpSuit && suit === gameState.privateTrumpSuit) {
       cardDiv.classList.add('candidate-trump');
     }
     const suitColor = (suit === '♥' || suit === '♦') ? 'red' : 'black';
@@ -448,7 +484,7 @@ document.getElementById('set-trump-btn').addEventListener('click', () => {
   });
 
   gameState.trumpCard = { playerId: gameState.myPlayerId, card: gameState.selectedCard };
-  // Candidate trump highlight shows on all clients until server officially reveals
+  // Candidate trump highlight is local to the player who selected it; we don't reveal suit to others
   const [r, , candidateSuit] = gameState.selectedCard.split(' ');
   gameState.candidateTrumpSuit = candidateSuit;
   showNotification(`Candidate Trump Suit: ${candidateSuit}`, 'info');
@@ -464,6 +500,14 @@ document.getElementById('pass-trump-btn').addEventListener('click', () => {
   });
   // Clear the current candidate highlight before server moves turn
   gameState.candidateTrumpSuit = null;
+  updateGameDisplay();
+});
+
+// Reveal trump button (private reveal to the requesting player)
+document.getElementById('reveal-trump-btn').addEventListener('click', () => {
+  socket.emit('askRevealTrump', { roomCode: gameState.roomCode, playerId: gameState.myPlayerId });
+  // Hide the button while waiting for server ack
+  gameState.revealAvailable = false;
   updateGameDisplay();
 });
 
@@ -514,12 +558,27 @@ function updateGameDisplay() {
     document.getElementById('turn-info').textContent = 'Choose trump or PASS';
   } else {
     document.getElementById('trump-selection-btns').style.display = 'none';
+    document.getElementById('trump-selection-btns').style.display = 'none';
+    // reveal button is displayed only to player who can't follow suit and if a trump exists but isn't revealed
+    const showRevealBtn = isMyTurn && gameState.revealAvailable && gameState.trumpSelected && !gameState.trumpSuit;
+    document.getElementById('reveal-trump-btn').style.display = showRevealBtn ? 'block' : 'none';
+    // In play phase, only the current player sees play button
     document.getElementById('play-card-btn').style.display = isMyTurn ? 'block' : 'none';
   }
 
   // render player slots and highlight trump suit in the hand
   renderPlayerSlots();
   renderMyHand();
+
+  // Display private trump (if this client asked and received reveal)
+  const privateTr = document.getElementById('private-trump-display');
+  const privateSuitSpan = document.getElementById('private-trump-suit');
+  if (gameState.privateTrumpSuit) {
+    privateSuitSpan.textContent = gameState.privateTrumpSuit;
+    privateTr.style.display = 'block';
+  } else {
+    privateTr.style.display = 'none';
+  }
 }
 
 // Show notification
