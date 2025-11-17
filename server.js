@@ -210,6 +210,8 @@ io.on('connection', (socket) => {
 
     if (game && game.currentPlayerIndex === playerId) {
       game.trumpCard = { playerId, card };
+      // Ensure the player who selected trump starts the round
+      game.currentPlayerIndex = playerId;
       // Move to play phase (use 'play' to match client-side phase value)
       game.phase = 'play';
 
@@ -243,6 +245,16 @@ io.on('connection', (socket) => {
     if (!game || game.currentPlayerIndex !== playerId) {
       socket.emit('error', { message: 'Not your turn' });
       return;
+    }
+
+    // Enforce follow-suit: if a leading suit is set and player has that suit, they must play it
+    const cardSuit = card.split(' ')[2];
+    if (game.leadingSuit) {
+      const playerHasLeading = game.hands[playerId].some(c => c.split(' ')[2] === game.leadingSuit);
+      if (playerHasLeading && cardSuit !== game.leadingSuit) {
+        socket.emit('error', { message: 'You must follow the leading suit.' });
+        return;
+      }
     }
 
     // Remove card from player's hand
