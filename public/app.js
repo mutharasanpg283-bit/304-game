@@ -224,6 +224,14 @@ socket.on('trumpCardSet', (data) => {
   }
   // server sets the next game phase to playing
   gameState.phase = 'play';
+  // update current player index if server provided it (setter should start)
+  if (data && typeof data.currentPlayerIndex !== 'undefined') {
+    gameState.currentPlayerIndex = data.currentPlayerIndex;
+  }
+  // If the server told us who selected trump, and it was this client, show a start message
+  if (data && typeof data.playerId !== 'undefined' && data.playerId === gameState.myPlayerId) {
+    showNotification('You selected trump — you start the round! Play your first card.', 'success');
+  }
   updateGameDisplay();
 });
 
@@ -254,6 +262,7 @@ socket.on('trumpRevealed', (data) => {
   // No longer a candidate-only trump: it's public now
   gameState.trumpSelected = false;
   updateGameDisplay();
+  playSFX('reveal');
 });
 socket.on('trumpRevealed', (data) => {
   // hide reveal availability once trump is officially revealed
@@ -264,6 +273,7 @@ socket.on('trumpRevealed', (data) => {
 socket.on('cardPlayed', (data) => {
   gameState.cardsInPlay = data.cardsInPlay;
   gameState.leadingSuit = data.leadingSuit;
+  playSFX('play');
   updateGameDisplay();
 });
 
@@ -285,6 +295,13 @@ socket.on('revealAvailable', (data) => {
 socket.on('revealTrumpPrivate', (data) => {
   gameState.privateTrumpSuit = data.trumpSuit;
   showNotification(`Private: TRUMP is ${data.trumpSuit}`, 'info');
+  playSFX('reveal');
+  // small reveal animation
+  const privateTr = document.getElementById('private-trump-display');
+  if (privateTr) {
+    privateTr.classList.add('reveal-animate');
+    setTimeout(() => privateTr.classList.remove('reveal-animate'), 1200);
+  }
   updateGameDisplay();
 });
 
@@ -299,7 +316,42 @@ socket.on('roundComplete', (data) => {
   gameState.scores = data.scores;
   const winnerName = gameState.players[data.winner].name;
   showNotification(`${winnerName} wins the round! +${data.points} points`, 'success');
-  updateGameDisplay();
+  // Animate center cards fade-out for clarity, then update display
+  const center = document.getElementById('center-table');
+  if (center) {
+    Array.from(center.querySelectorAll('.played-card')).forEach(el => el.classList.add('fade-out'));
+    // Animate trick to winner: clone cards and animate to winner's score slot
+    const winnerSlot = document.getElementById(`score-player-${data.winner}`);
+    if (winnerSlot) {
+      Array.from(center.querySelectorAll('.played-card')).forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        const clone = el.cloneNode(true);
+        clone.style.position = 'fixed';
+        clone.style.left = `${rect.left}px`;
+        clone.style.top = `${rect.top}px`;
+        clone.style.margin = '0';
+        clone.style.zIndex = 9999;
+        document.body.appendChild(clone);
+        const targetRect = winnerSlot.getBoundingClientRect();
+        requestAnimationFrame(() => {
+          clone.style.transition = 'transform 0.9s ease, opacity 0.9s ease';
+          const dx = targetRect.left + targetRect.width/2 - (rect.left + rect.width/2);
+          const dy = targetRect.top + targetRect.height/2 - (rect.top + rect.height/2);
+          clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.25)`;
+          clone.style.opacity = '0.35';
+          setTimeout(() => clone.remove(), 1000);
+        });
+      });
+    }
+  }
+  playSFX('round');
+  setTimeout(() => updateGameDisplay(), 900);
+});
+
+// Play error SFX when server emits error
+socket.on('error', (data) => {
+  playSFX('error');
+  alert(data.message);
 });
 
 socket.on('nextRound', (data) => {
@@ -359,14 +411,57 @@ function showGame() {
   updateGameDisplay();
 }
 
+// Simple WebAudio SFX helper
+const audioCtx = typeof AudioContext !== 'undefined' ? new AudioContext() : null;
+function playSFX(type) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g);
+  g.connect(audioCtx.destination);
+  const now = audioCtx.currentTime;
+  if (type === 'play') { o.type='sine'; o.frequency.setValueAtTime(600, now); g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.12, now+0.01); o.frequency.exponentialRampToValueAtTime(800, now+0.12); }
+  if (type === 'error') { o.type='square'; o.frequency.setValueAtTime(220, now); g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.2, now+0.01); o.frequency.exponentialRampToValueAtTime(120, now+0.12); }
+  if (type === 'reveal') { o.type='triangle'; o.frequency.setValueAtTime(400, now); g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.15, now+0.01); o.frequency.exponentialRampToValueAtTime(600, now+0.18); }
+  if (type === 'round') { o.type='sine'; o.frequency.setValueAtTime(300, now); g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.18, now+0.01); o.frequency.exponentialRampToValueAtTime(540, now+0.22); }
+  o.start(now);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+  o.stop(now + 0.5);
+}
+
 // Render player's hand
 function renderMyHand() {
   const handDiv = document.getElementById('my-hand');
   handDiv.innerHTML = '';
+  // Sort hand by suit then rank for easier reading
+  const suitOrder = ['♠','♥','♦','♣'];
+  const rankOrder = ['J','9','A','10','K','Q','8','7'];
+  const sortedHand = [...gameState.myHand].sort((a,b) => {
+    const partsA = a.split(' ');
+    const partsB = b.split(' ');
+    const suitA = partsA[2];
+    const suitB = partsB[2];
+    if (suitA !== suitB) return suitOrder.indexOf(suitA) - suitOrder.indexOf(suitB);
+    const rankA = partsA[0];
+    const rankB = partsB[0];
+    return rankOrder.indexOf(rankA) - rankOrder.indexOf(rankB);
+  });
 
-  gameState.myHand.forEach((card, index) => {
+  const handCount = sortedHand.length;
+  const containerWidth = handDiv.clientWidth || handDiv.offsetWidth || 800;
+  const gap = 10; // matches CSS gap
+  const maxCardWidth = 92;
+  const minCardWidth = 64;
+  let cardWidth = Math.floor((containerWidth - gap * Math.max(0, handCount - 1)) / Math.max(1, handCount));
+  cardWidth = Math.min(maxCardWidth, Math.max(minCardWidth, cardWidth));
+
+  sortedHand.forEach((card, index) => {
     const cardDiv = document.createElement('div');
     cardDiv.className = 'card';
+
+    // set dynamic size so hand fits in one row
+    cardDiv.style.width = `${cardWidth}px`;
+    cardDiv.style.height = `${Math.round(cardWidth * (128/92))}px`;
 
     // Check if trump card or trump suit
     if (gameState.trumpCard && gameState.trumpCard.card === card) {
@@ -523,9 +618,19 @@ function updateGameDisplay() {
     'YOUR TURN' : `${currentPlayer.name}'s Turn`;
 
   // Update scores
-  document.getElementById('scores-display').innerHTML = gameState.players
-    .map((p, i) => `<span>${p.name}: ${gameState.scores[i]}</span>`)
-    .join(' | ');
+  // Update scoreboard slots
+  for (let i = 0; i < 4; i++) {
+    const slot = document.getElementById(`score-player-${i}`);
+    if (!slot) continue;
+    if (gameState.players[i]) {
+      const isMe = i === gameState.myPlayerId;
+      slot.innerHTML = `<div>${isMe ? '<strong>(You)</strong> ' : ''}${gameState.players[i].name}</div><div style="opacity:0.9">Points: ${gameState.scores[i] || 0}</div>`;
+      slot.classList.toggle('current', gameState.currentPlayerIndex === i);
+    } else {
+      slot.innerHTML = `<div>Waiting</div><div>Points: 0</div>`;
+      slot.classList.remove('current');
+    }
+  }
 
   // Update center table
   const centerDiv = document.getElementById('center-table');
@@ -533,22 +638,41 @@ function updateGameDisplay() {
   // Show played cards in a 4-position layout around the table.
   const positions = ['pos-top', 'pos-right', 'pos-bottom', 'pos-left'];
   gameState.cardsInPlay.forEach(({ playerId, card }) => {
-    const cardDiv = document.createElement('div');
-    cardDiv.className = 'played-card';
+    // Render a full card element (same style as hand) for each played card
     const [rank, , suit] = card.split(' ');
     const suitColor = (suit === '♥' || suit === '♦') ? 'red' : 'black';
-    cardDiv.innerHTML = `
+    const wrapper = document.createElement('div');
+
+    const c = document.createElement('div');
+    c.className = 'card played-center-card';
+    c.innerHTML = `
       <div class="card-content" style="color: ${suitColor}">
-        <div class="card-suit-large">${suit}</div>
-        <div class="card-rank-large">${rank}</div>
+        <div class="card-corner">${rank}<br>${suit}</div>
+        <div class="card-center">
+          <div class="card-suit">${suit}</div>
+          <div class="card-rank">${rank}</div>
+        </div>
+        <div class="card-corner card-corner-bottom">${rank}<br>${suit}</div>
       </div>
-      <div class="player-label">${gameState.players[playerId].name}</div>
     `;
+
+    // player label below the card
+    const label = document.createElement('div');
+    label.className = 'player-label';
+    label.textContent = gameState.players[playerId] ? gameState.players[playerId].name : '';
+
+    wrapper.appendChild(c);
+    wrapper.appendChild(label);
+
     // Map player to a position relative to the viewer (your seat is bottom-left)
     const relative = (playerId - gameState.myPlayerId + 4) % 4;
     const posCls = positions[relative] || 'pos-top';
-    cardDiv.classList.add(posCls);
-    centerDiv.appendChild(cardDiv);
+    wrapper.classList.add(posCls);
+    centerDiv.appendChild(wrapper);
+
+    // Add entry animation
+    wrapper.classList.add('played-animate');
+    setTimeout(() => wrapper.classList.remove('played-animate'), 900);
   });
 
   // Show/hide trump selection buttons

@@ -56,9 +56,17 @@
 
       <!-- Header -->
       <div class="game-header">
-        <div id="round-info" class="round-info">Round 1/8</div>
-        <div id="turn-info" class="turn-info">YOUR TURN</div>
-        <div id="scores-display" class="scores-display"></div>
+        <div class="header-left">
+          <div id="round-info" class="round-info">Round 1/8</div>
+          <div id="turn-info" class="turn-info">YOUR TURN</div>
+        </div>
+        <div class="scoreboard" id="scoreboard">
+          <!-- Player score slots injected here -->
+          <div class="score-slot" id="score-player-0"></div>
+          <div class="score-slot" id="score-player-1"></div>
+          <div class="score-slot" id="score-player-2"></div>
+          <div class="score-slot" id="score-player-3"></div>
+        </div>
       </div>
 
       <!-- Player slots (corners) -->

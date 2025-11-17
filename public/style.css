@@ -235,13 +235,13 @@ input[type="text"]:focus {
 
 .game-header {
   background: rgba(0,0,0,0.3);
-  padding: 15px;
+  padding: 12px 18px;
   border-radius: 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   color: white;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .round-info {
@@ -259,6 +259,26 @@ input[type="text"]:focus {
   font-size: 16px;
 }
 
+.scoreboard {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.score-slot {
+  min-width: 130px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+  text-align: center;
+  font-weight: bold;
+  color: #fff;
+}
+
+.score-slot.current { box-shadow: 0 0 10px rgba(255,215,0,0.7); border: 1px solid rgba(255,215,0,0.25); }
+
+.header-left { display:flex; flex-direction:column; gap:4px; }
+
 .center-table {
   background: rgba(0,0,0,0.2);
   border-radius: 20px;
@@ -274,18 +294,7 @@ input[type="text"]:focus {
 
 /* Player slots (corner layout) */
 .player-slot {
-  width: 160px;
-  height: 110px;
-  background: rgba(255,255,255,0.06);
-  border-radius: 12px;
-  color: white;
-  padding: 10px;
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+  display: none; /* hide corner slots for simplified UI */
 }
 
 .player-slot .player-name { font-weight: bold; margin-bottom: 6px; }
@@ -295,11 +304,17 @@ input[type="text"]:focus {
 .player-slot.bottom-right { bottom: 10px; right: 10px; }
 
 /* Center table - layout 4 positions */
-.center-table .played-card { width: 120px; height: 160px; margin: 6px; }
+.center-table .played-card { width: 140px; height: 180px; margin: 6px; display: flex; flex-direction: column; align-items: center; }
 .center-table .pos-top { position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%); }
 .center-table .pos-right { position: absolute; top: 50%; right: 10%; transform: translate(50%, -50%); }
 .center-table .pos-bottom { position: absolute; bottom: 20%; left: 50%; transform: translate(-50%, 50%); }
 .center-table .pos-left { position: absolute; top: 50%; left: 10%; transform: translate(-50%, -50%); }
+
+.played-center-card { width: 120px; height: 160px; }
+.played-center-card .card-content { padding: 6px; }
+.played-center-card .card-corner { font-size: 12px; }
+.played-center-card .card-suit { font-size: 36px; }
+.played-center-card .card-rank { font-size: 28px; }
 
 /* Trump suit display */
 .trump-display {
@@ -313,6 +328,14 @@ input[type="text"]:focus {
   font-size: 22px;
   background: rgba(255,0,0,0.9);
   z-index: 10;
+}
+
+/* Private reveal animation */
+.reveal-animate { animation: revealPulse 1.1s ease; }
+@keyframes revealPulse {
+  0% { transform: scale(0.9); opacity: 0; }
+  40% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 /* Highlight cards with trump suit */
@@ -380,13 +403,13 @@ input[type="text"]:focus {
 }
 
 .card {
-  width: 100px;
-  height: 140px;
+  width: 92px;
+  height: 128px;
   background: white;
   border-radius: 12px;
   box-shadow: 0 4px 8px rgba(0,0,0,0.3);
   cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: transform 0.25s, box-shadow 0.25s;
   position: relative;
   overflow: hidden;
 }
@@ -453,6 +476,21 @@ input[type="text"]:focus {
   font-size: 36px;
   font-weight: bold;
 }
+
+/* Played card entry animation */
+.played-animate { transform: translateY(-20px) scale(1.04); opacity: 0; animation: playedIn 0.6s forwards; }
+@keyframes playedIn {
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Fade-out at round end */
+.fade-out { animation: fadeOutCard 0.6s forwards; }
+@keyframes fadeOutCard {
+  to { opacity: 0; transform: scale(0.9); }
+}
+
+/* Improve scoreboard readability */
+.scores-display span { margin-right: 14px; font-weight: 700; color: #fff; }
 
 .action-buttons {
   display: flex;
