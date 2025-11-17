@@ -273,6 +273,15 @@ socket.on('trumpRevealed', (data) => {
 socket.on('cardPlayed', (data) => {
   gameState.cardsInPlay = data.cardsInPlay;
   gameState.leadingSuit = data.leadingSuit;
+  // If this client played the card, remove it from their hand now that server accepted it
+  if (typeof data.playerId !== 'undefined' && data.playerId === gameState.myPlayerId) {
+    gameState.myHand = gameState.myHand.filter(c => c !== data.card);
+    // clear selection if it was the played card
+    if (gameState.selectedCard === data.card) gameState.selectedCard = null;
+    // Re-enable play button after server acknowledgement
+    const playBtn = document.getElementById('play-card-btn');
+    if (playBtn) playBtn.disabled = false;
+  }
   playSFX('play');
   updateGameDisplay();
 });
@@ -351,7 +360,10 @@ socket.on('roundComplete', (data) => {
 // Play error SFX when server emits error
 socket.on('error', (data) => {
   playSFX('error');
-  alert(data.message);
+  showNotification(data.message, 'error');
+  // Re-enable play button so player can try again
+  const playBtn = document.getElementById('play-card-btn');
+  if (playBtn) playBtn.disabled = false;
 });
 
 socket.on('nextRound', (data) => {
@@ -397,9 +409,6 @@ socket.on('playerLeft', (data) => {
   updatePlayersList();
 });
 
-socket.on('error', (data) => {
-  alert(data.message);
-});
 
 // Show game screen
 function showGame() {
@@ -558,11 +567,9 @@ document.getElementById('play-card-btn').addEventListener('click', () => {
     playerId: gameState.myPlayerId,
     card: gameState.selectedCard
   });
-
-  // Remove from hand locally
-  gameState.myHand = gameState.myHand.filter(c => c !== gameState.selectedCard);
-  gameState.selectedCard = null;
-  renderMyHand();
+  // Disable play button until server acknowledges the play
+  const playBtn = document.getElementById('play-card-btn');
+  if (playBtn) playBtn.disabled = true;
 });
 
 // Set trump card
@@ -632,11 +639,11 @@ function updateGameDisplay() {
     }
   }
 
-  // Update center table
+  // Update center table (render as a horizontal row)
   const centerDiv = document.getElementById('center-table');
   centerDiv.innerHTML = '';
-  // Show played cards in a 4-position layout around the table.
-  const positions = ['pos-top', 'pos-right', 'pos-bottom', 'pos-left'];
+  centerDiv.classList.add('center-row');
+  // Render cards in a row order by play sequence
   gameState.cardsInPlay.forEach(({ playerId, card }) => {
     // Render a full card element (same style as hand) for each played card
     const [rank, , suit] = card.split(' ');
@@ -664,10 +671,8 @@ function updateGameDisplay() {
     wrapper.appendChild(c);
     wrapper.appendChild(label);
 
-    // Map player to a position relative to the viewer (your seat is bottom-left)
-    const relative = (playerId - gameState.myPlayerId + 4) % 4;
-    const posCls = positions[relative] || 'pos-top';
-    wrapper.classList.add(posCls);
+    // Use a simple row layout; add identifying class
+    wrapper.classList.add('played-card');
     centerDiv.appendChild(wrapper);
 
     // Add entry animation

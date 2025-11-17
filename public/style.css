@@ -288,8 +288,21 @@ input[type="text"]:focus {
   margin: 20px 0;
 }
 
+.center-table.center-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  min-height: 160px;
+}
+
 .played-card {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 
 /* Player slots (corner layout) */
@@ -304,11 +317,7 @@ input[type="text"]:focus {
 .player-slot.bottom-right { bottom: 10px; right: 10px; }
 
 /* Center table - layout 4 positions */
-.center-table .played-card { width: 140px; height: 180px; margin: 6px; display: flex; flex-direction: column; align-items: center; }
-.center-table .pos-top { position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%); }
-.center-table .pos-right { position: absolute; top: 50%; right: 10%; transform: translate(50%, -50%); }
-.center-table .pos-bottom { position: absolute; bottom: 20%; left: 50%; transform: translate(-50%, 50%); }
-.center-table .pos-left { position: absolute; top: 50%; left: 10%; transform: translate(-50%, -50%); }
+.center-table .played-card { width: 140px; height: 180px; margin: 6px; }
 
 .played-center-card { width: 120px; height: 160px; }
 .played-center-card .card-content { padding: 6px; }
