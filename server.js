@@ -358,8 +358,10 @@ io.on('connection', (socket) => {
     if (game.leadingSuit && game.trumpCard && !game.trumpRevealed) {
       const playerHasLeading = game.hands[playerId].some(c => c.split(' ')[2] === game.leadingSuit);
       if (!playerHasLeading) {
-        // Send reveal to this socket only
-        socket.emit('revealTrumpPrivate', { trumpSuit: game.trumpCard.card.split(' ')[2] });
+        // Reveal trump to all players (make reveal global)
+        game.trumpSuit = game.trumpCard.card.split(' ')[2];
+        game.trumpRevealed = true;
+        io.to(roomCode).emit('trumpRevealed', { trumpSuit: game.trumpSuit });
       } else {
         socket.emit('error', { message: 'You still have the leading suit; cannot reveal.' });
       }
