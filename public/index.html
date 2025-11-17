@@ -61,10 +61,19 @@
         <div id="scores-display" class="scores-display"></div>
       </div>
 
+      <!-- Player slots (corners) -->
+      <div id="player-slot-top-left" class="player-slot top-left"></div>
+      <div id="player-slot-top-right" class="player-slot top-right"></div>
+      <div id="player-slot-bottom-left" class="player-slot bottom-left"></div>
+      <div id="player-slot-bottom-right" class="player-slot bottom-right"></div>
+
       <!-- Center Table -->
       <div id="center-table" class="center-table">
         <!-- Played cards appear here -->
       </div>
+
+      <!-- Trump suit display -->
+      <div id="trump-display" class="trump-display" style="display:none;"></div>
 
       <!-- Player's Hand -->
       <div class="hand-container">
@@ -81,6 +90,17 @@
         <button id="play-card-btn" class="btn btn-primary">PLAY CARD</button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- End Game Screen -->
+  <div id="end-screen" class="end-screen" style="display:none;">
+    <div class="end-modal">
+      <h2 id="end-heading">Game Over</h2>
+      <div id="end-scores" class="end-scores"></div>
+      <div class="end-actions">
+        <button id="end-home-btn" class="btn btn-primary">Return to Home</button>
+      </div>
     </div>
   </div>
 

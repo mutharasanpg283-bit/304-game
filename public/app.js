@@ -203,17 +203,52 @@ socket.on('playerReadyUpdate', (data) => {
 
 socket.on('gameStarted', (data) => {
   gameState = { ...gameState, ...data.gameState };
+  // Default to trump-selection phase at start of a new game until server or a player sets trump
+  if (!gameState.phase) {
+    gameState.phase = 'trump-selection';
+    gameState.currentPlayerIndex = gameState.currentPlayerIndex ?? 0;
+  }
   showGame();
+  updateGameDisplay();
 });
 
 socket.on('trumpCardSet', (data) => {
-  // Handle trump card set
+  // Handle trump card set - store selection and allow reveal
+  if (data && data.trumpCard) {
+    gameState.trumpCard = data.trumpCard;
+    // set candidate suit across all clients so that the trump suit is highlighted until revealed
+    if (data.trumpCard.card) {
+      const [, , cardSuit] = data.trumpCard.card.split(' ');
+      gameState.candidateTrumpSuit = cardSuit;
+    }
+  }
+  // server sets the next game phase to playing
+  gameState.phase = 'play';
+  updateGameDisplay();
+});
+
+socket.on('trumpPassed', (data) => {
+  // Update current player index and notify clients
+  gameState.currentPlayerIndex = data.currentPlayerIndex;
+  showNotification(`Trump passed to ${gameState.players[data.currentPlayerIndex].name}`, 'info');
   updateGameDisplay();
 });
 
 socket.on('trumpRevealed', (data) => {
   gameState.trumpSuit = data.trumpSuit;
   showNotification(`Trump Suit Revealed: ${data.trumpSuit}`, 'info');
+  // Show a textual overlay
+  const trumpDisplay = document.getElementById('trump-display');
+  if (gameState.trumpSuit) {
+    trumpDisplay.textContent = `TRUMP: ${gameState.trumpSuit}`;
+    trumpDisplay.style.display = 'block';
+  } else {
+    trumpDisplay.style.display = 'none';
+  }
+  // clear candidate suit once the server officially revealed the trump
+  gameState.candidateTrumpSuit = null;
+  // After revealing the trump, change phase to normal play
+  gameState.phase = 'play';
   updateGameDisplay();
 });
 
@@ -244,9 +279,33 @@ socket.on('nextRound', (data) => {
 });
 
 socket.on('gameOver', (data) => {
+  // Display end-screen with detailed scores
   const winnerName = gameState.players[data.winner].name;
   showNotification(`🎉 ${winnerName} wins the game! 🎉`, 'success');
-  setTimeout(() => showHome(), 5000);
+  showEndScreen(data);
+});
+
+// Show end screen overlay with scores and winner
+function showEndScreen(data) {
+  const endScreen = document.getElementById('end-screen');
+  const endScoresDiv = document.getElementById('end-scores');
+  const heading = document.getElementById('end-heading');
+  const winnerName = gameState.players[data.winner] ? gameState.players[data.winner].name : 'Winner';
+  heading.textContent = `🎉 ${winnerName} wins the game! 🎉`;
+
+  let scoresHtml = '';
+  for (let i = 0; i < gameState.players.length; i++) {
+    if (!gameState.players[i]) continue;
+    scoresHtml += `<div>${gameState.players[i].name}: ${gameState.scores[i] || 0}</div>`;
+  }
+  endScoresDiv.innerHTML = scoresHtml;
+  endScreen.style.display = 'flex';
+}
+
+document.getElementById('end-home-btn').addEventListener('click', () => {
+  const endScreen = document.getElementById('end-screen');
+  endScreen.style.display = 'none';
+  showHome();
 });
 
 socket.on('playerLeft', (data) => {
@@ -277,13 +336,19 @@ function renderMyHand() {
     const cardDiv = document.createElement('div');
     cardDiv.className = 'card';
 
-    // Check if trump card
+    // Check if trump card or trump suit
     if (gameState.trumpCard && gameState.trumpCard.card === card) {
       cardDiv.classList.add('trump-card');
     }
-
-    // Extract rank and suit
+    // Extract rank and suit to check for highlighting
     const [rank, , suit] = card.split(' ');
+    if (gameState.trumpSuit && suit === gameState.trumpSuit) {
+      cardDiv.classList.add('trump-suit');
+    }
+    // Candidate highlight when current player has selected a candidate trump card
+    if (gameState.candidateTrumpSuit && suit === gameState.candidateTrumpSuit) {
+      cardDiv.classList.add('candidate-trump');
+    }
     const suitColor = (suit === '♥' || suit === '♦') ? 'red' : 'black';
 
     cardDiv.innerHTML = `
@@ -300,6 +365,39 @@ function renderMyHand() {
     cardDiv.addEventListener('click', () => selectCard(card, cardDiv));
     handDiv.appendChild(cardDiv);
   });
+}
+
+// Render player slots (corner UI)
+function renderPlayerSlots() {
+  const slots = ['bottom-left', 'top-left', 'top-right', 'bottom-right'];
+  const slotIds = ['player-slot-bottom-left', 'player-slot-top-left', 'player-slot-top-right', 'player-slot-bottom-right'];
+
+  // Rotate slots to make sure current player is at bottom-left
+  for (let i = 0; i < 4; i++) {
+    const relative = (i - gameState.myPlayerId + 4) % 4;
+    const slotName = slots[relative];
+    const slotEl = document.getElementById(slotIds[relative]);
+    if (!slotEl) continue;
+
+    if (gameState.players[i]) {
+      const p = gameState.players[i];
+      slotEl.innerHTML = `
+        <div class="player-name">${i === gameState.myPlayerId ? '<strong>(You)</strong> ' : ''}${p.name}</div>
+        <div class="player-score">Points: ${gameState.scores[i] || 0}</div>
+      `;
+      slotEl.style.opacity = 1;
+      // Highlight current player's slot border
+      if (gameState.currentPlayerIndex === i) {
+        slotEl.style.boxShadow = '0 0 12px rgba(255,255,0,0.8)';
+      } else {
+        slotEl.style.boxShadow = 'none';
+      }
+    } else {
+      slotEl.innerHTML = `<div class="player-waiting">Waiting...</div>`;
+      slotEl.style.opacity = 0.6;
+      slotEl.style.boxShadow = 'none';
+    }
+  }
 }
 
 // Select card
@@ -350,6 +448,10 @@ document.getElementById('set-trump-btn').addEventListener('click', () => {
   });
 
   gameState.trumpCard = { playerId: gameState.myPlayerId, card: gameState.selectedCard };
+  // Candidate trump highlight shows on all clients until server officially reveals
+  const [r, , candidateSuit] = gameState.selectedCard.split(' ');
+  gameState.candidateTrumpSuit = candidateSuit;
+  showNotification(`Candidate Trump Suit: ${candidateSuit}`, 'info');
   gameState.selectedCard = null;
   renderMyHand();
   updateGameDisplay();
@@ -360,6 +462,9 @@ document.getElementById('pass-trump-btn').addEventListener('click', () => {
   socket.emit('passTrump', {
     roomCode: gameState.roomCode
   });
+  // Clear the current candidate highlight before server moves turn
+  gameState.candidateTrumpSuit = null;
+  updateGameDisplay();
 });
 
 // Update game display
@@ -381,6 +486,8 @@ function updateGameDisplay() {
   // Update center table
   const centerDiv = document.getElementById('center-table');
   centerDiv.innerHTML = '';
+  // Show played cards in a 4-position layout around the table.
+  const positions = ['pos-top', 'pos-right', 'pos-bottom', 'pos-left'];
   gameState.cardsInPlay.forEach(({ playerId, card }) => {
     const cardDiv = document.createElement('div');
     cardDiv.className = 'played-card';
@@ -393,17 +500,26 @@ function updateGameDisplay() {
       </div>
       <div class="player-label">${gameState.players[playerId].name}</div>
     `;
+    // Map player to a position relative to the viewer (your seat is bottom-left)
+    const relative = (playerId - gameState.myPlayerId + 4) % 4;
+    const posCls = positions[relative] || 'pos-top';
+    cardDiv.classList.add(posCls);
     centerDiv.appendChild(cardDiv);
   });
 
   // Show/hide trump selection buttons
-  if (gameState.phase === 'trump-selection' && isMyTurn && !gameState.trumpCard) {
+  if (gameState.phase === 'trump-selection' && isMyTurn && !gameState.trumpSuit) {
     document.getElementById('trump-selection-btns').style.display = 'block';
     document.getElementById('play-card-btn').style.display = 'none';
+    document.getElementById('turn-info').textContent = 'Choose trump or PASS';
   } else {
     document.getElementById('trump-selection-btns').style.display = 'none';
     document.getElementById('play-card-btn').style.display = isMyTurn ? 'block' : 'none';
   }
+
+  // render player slots and highlight trump suit in the hand
+  renderPlayerSlots();
+  renderMyHand();
 }
 
 // Show notification
