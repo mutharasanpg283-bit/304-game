@@ -210,7 +210,8 @@ io.on('connection', (socket) => {
 
     if (game && game.currentPlayerIndex === playerId) {
       game.trumpCard = { playerId, card };
-      game.phase = 'playing';
+      // Move to play phase (use 'play' to match client-side phase value)
+      game.phase = 'play';
 
       io.to(roomCode).emit('trumpCardSet', {
         playerId,
