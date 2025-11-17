@@ -215,8 +215,7 @@ io.on('connection', (socket) => {
       io.to(roomCode).emit('trumpCardSet', {
         playerId,
         trumpSet: true,
-        currentPlayerIndex: game.currentPlayerIndex,
-        trumpCard: game.trumpCard
+        currentPlayerIndex: game.currentPlayerIndex
       });
     }
   });
@@ -318,6 +317,41 @@ io.on('connection', (socket) => {
       io.to(roomCode).emit('nextTurn', {
         currentPlayerIndex: game.currentPlayerIndex
       });
+      // Inform the next player privately that they can request a trump reveal
+      if (game.leadingSuit && game.trumpCard && !game.trumpRevealed) {
+        const nextPlayerId = game.currentPlayerIndex;
+        const nextPlayerHasSuit = game.hands[nextPlayerId].some(c => c.split(' ')[2] === game.leadingSuit);
+        if (!nextPlayerHasSuit) {
+          // find the socket for next player
+          for (const [sockId, pd] of playerSockets.entries()) {
+            if (pd.roomCode === roomCode && pd.playerId === nextPlayerId) {
+              io.to(sockId).emit('revealAvailable', { canReveal: true });
+              break;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Player asks for a private reveal of the selected trump suit
+  socket.on('askRevealTrump', (data) => {
+    const { roomCode, playerId } = data;
+    const game = games.get(roomCode);
+
+    if (!game) return;
+
+    // Only allow reveal if player cannot follow the leading suit and trump is set but not globally revealed
+    if (game.leadingSuit && game.trumpCard && !game.trumpRevealed) {
+      const playerHasLeading = game.hands[playerId].some(c => c.split(' ')[2] === game.leadingSuit);
+      if (!playerHasLeading) {
+        // Send reveal to this socket only
+        socket.emit('revealTrumpPrivate', { trumpSuit: game.trumpCard.card.split(' ')[2] });
+      } else {
+        socket.emit('error', { message: 'You still have the leading suit; cannot reveal.' });
+      }
+    } else {
+      socket.emit('error', { message: 'No trump set or already revealed.' });
     }
   });
 
