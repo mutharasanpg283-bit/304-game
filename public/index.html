@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>304 Card Game - Multiplayer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Home Screen -->
+  <div id="home-screen" class="screen">
+    <div class="container">
+      <h1 class="title">304 CARD GAME</h1>
+      <p class="subtitle">Online Multiplayer</p>
+
+      <div class="input-group">
+        <input type="text" id="player-name-input" placeholder="Enter your name" maxlength="20">
+      </div>
+
+      <button id="create-game-btn" class="btn btn-primary">CREATE NEW GAME</button>
+
+      <div class="divider">OR</div>
+
+      <div class="input-group">
+        <input type="text" id="room-code-input" placeholder="Enter room code" maxlength="6">
+      </div>
+
+      <button id="join-game-btn" class="btn btn-secondary">JOIN GAME</button>
+    </div>
+  </div>
+
+  <!-- Lobby Screen -->
+  <div id="lobby-screen" class="screen" style="display:none;">
+    <div class="container">
+      <div class="room-code-container">
+        <h2>Room Code: <span id="room-code-display"></span></h2>
+        <button id="copy-code-btn" class="btn-small">📋 Copy</button>
+      </div>
+
+      <div class="status-text">Waiting for players (X/4)</div>
+
+      <div id="players-list" class="players-list"></div>
+
+      <div class="button-group">
+        <button id="ready-btn" class="btn btn-success">READY</button>
+        <button id="start-game-btn" class="btn btn-primary" style="display:none;">START GAME</button>
+        <button id="leave-room-btn" class="btn btn-danger">LEAVE ROOM</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="game-screen" class="screen" style="display:none;">
+    <div class="game-container">
+
+      <!-- Header -->
+      <div class="game-header">
+        <div id="round-info" class="round-info">Round 1/8</div>
+        <div id="turn-info" class="turn-info">YOUR TURN</div>
+        <div id="scores-display" class="scores-display"></div>
+      </div>
+
+      <!-- Center Table -->
+      <div id="center-table" class="center-table">
+        <!-- Played cards appear here -->
+      </div>
+
+      <!-- Player's Hand -->
+      <div class="hand-container">
+        <h3>Your Hand</h3>
+        <div id="my-hand" class="hand"></div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <div id="trump-selection-btns" style="display:none;">
+          <button id="set-trump-btn" class="btn btn-warning">SET AS TRUMP</button>
+          <button id="pass-trump-btn" class="btn btn-secondary">PASS</button>
+        </div>
+        <button id="play-card-btn" class="btn btn-primary">PLAY CARD</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Socket.io client -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
