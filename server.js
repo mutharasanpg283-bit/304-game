@@ -215,7 +215,8 @@ io.on('connection', (socket) => {
       io.to(roomCode).emit('trumpCardSet', {
         playerId,
         trumpSet: true,
-        currentPlayerIndex: game.currentPlayerIndex
+        currentPlayerIndex: game.currentPlayerIndex,
+        trumpCard: game.trumpCard
       });
     }
   });
